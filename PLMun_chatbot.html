@@ -1,0 +1,277 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+  <link href="https://www.w3schools.com/w3css/5/w3.css" rel="stylesheet">
+  <link href="./style.css" rel="stylesheet">
+  <link href="./PLmun_icon.png" rel="icon" type="image/png">
+  <title>PLMun Chatbot</title>
+</head>
+<body>   
+    <div class="admin-login">
+        <a href="C:\Users\pjtur\university_chatbot\frontend\Admin_login.html"><i style="vertical-align:middle;" class="material-icons">account_circle</i> Admin Login</a>
+    </div>
+  
+    <div class="w3-sidebar w3-bar-block w3-card w3-animate-left" style="display: none; background-color: #353A3D; color:white;" id="mySidebar">
+        <button class="w3-bar-item w3-button w3-large" style="width:45px" onclick="w3_close()">&times; </button>
+        <button onclick="createNewChat()" style="width:50%; height:5vh; margin-bottom:10px; background-color:#353A3d;">
+            + New Chat
+        </button>
+        <div class="history" id="chatList"> Your chats </div>
+        <p></p>
+        <a style="margin-left:5px;font-size: 18px;" href="C:\Users\pjtur\Admin Panel\Frontend\chat.html"><b>Chat the Admin</b> </a>
+        <p></p>
+        <a style="margin-left: 5px;" href="https://plmun.edu.ph/student-portal/system/main/index.php"> <b>Back To PLMun Student Portal</b></a>
+    </div>
+    <div class="w3">
+        <button id="openNav" class="w3-button w3-large" style="color:#ffffff;" onclick="w3_open()">&#9776;</button>
+        <div class="w3-container">
+            <h2><img style="height:60px; width: 160px; margin-top:5px;" src="./PLMUN_LOGO.png">Assistant chatbot</h2>
+        </div>
+
+    </div>
+
+    <div id="main" style="margin-left:20%">
+
+        <div class="chat">
+
+            <div class="messages" id="messages"><h2>Hi, how can i help you?</h2><p>Ask me Anything about PLMun services, admission or campus info</p></div>
+            <div class="input-row">
+                <input id="input" type="text" placeholder="Ask anything">
+                <button id="send"><i class="material-icons">send</i></button>
+            </div>
+            <div class="meta">Backend endpoint: <code id="endpoint">http://192.168.0.108:8000/chat</code></div>
+        </div>
+    </div>
+    <script>
+        const messagesEl = document.getElementById('messages');
+        const inputEl = document.getElementById('input');
+        const sendBtn = document.getElementById('send');
+        const endpointEl = document.getElementById('endpoint');
+
+        function w3_open() {
+            document.getElementById("main").style.marginLeft = "23%";
+            document.getElementById("mySidebar").style.width = "15%";
+            document.getElementById("mySidebar").style.display = "block";
+            document.getElementById("openNav").style.display = 'none';
+        }
+        function w3_close() {
+            document.getElementById("main").style.marginLeft = "20%";
+            document.getElementById("mySidebar").style.display = "none";
+            document.getElementById("openNav").style.display = "inline-block";
+        }
+
+        function appendMessage(text, cls) {
+            const div = document.createElement('div');
+            div.className = 'message ' + cls + ' clearfix';
+            div.innerText = text;
+            messagesEl.appendChild(div);
+            messagesEl.scrollTop = messagesEl.scrollHeight;
+        }
+
+        sendBtn.onclick = async () => {
+            const text = inputEl.value.trim();
+            if (!text) return;
+
+            if (!currentChatId) {
+                createNewChat();
+            }
+
+
+            appendMessage(text, 'user');
+            saveMessage("user", text);
+
+            const chats = JSON.parse(localStorage.getItem("chats")) || [];
+            const chat = chats.find(c => c.id === currentChatId);
+
+
+            if (chat && chat.messages.length === 1) {
+                try {
+                    const title = await generateTitle(text);
+                    chat.title = title;
+                    localStorage.setItem("chats", JSON.stringify(chats));
+                    renderChatList();
+                } catch (err) {
+                    appendMessage("Error generating chat title: " + err.message, 'bot');
+                }
+            }
+
+
+            inputEl.value = '';
+
+            try {
+                const res = await fetch(endpointEl.textContent.trim(), {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        message: text,
+                        title: currentChatTitle
+                    })
+                });
+                if (!res.ok) {
+                    appendMessage('Error from server: ' + res.statusText, 'bot');
+                    return;
+                }
+                const data = await res.json();
+                const reply = data.answer || data.error || 'No answer returned';
+
+                appendMessage(reply, 'bot');
+                saveMessage("bot", reply);
+
+            } catch (err) {
+                appendMessage('Network error: ' + err.message, 'bot');
+            }
+        }; inputEl.addEventListener('keydown', (e) => { if (e.key === 'Enter') { sendBtn.click(); } });
+
+        function createNewChat(firstMessage = "") {
+            const chats = JSON.parse(localStorage.getItem("chats")) || [];
+
+            const chat = {
+                id: "chat_" + Date.now(),
+                title: "New chat",
+                messages: []
+            };
+
+
+            chats.unshift(chat);
+            localStorage.setItem("chats", JSON.stringify(chats));
+
+            currentChatId = chat.id;
+            renderChatList();
+            loadChat(chat.id);
+        }
+
+        let currentChatTitle = null;
+
+
+        async function generateTitle(firstMessage) {
+            const res = await fetch("http://192.168.0.108:8000/generate-title", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({
+                    message: firstMessage   // MUST match backend
+                })
+            });
+
+            const data = await res.json();
+            return data.title;
+        }
+
+        let currentChatId = null;
+
+        function saveMessage(sender, text) {
+            const chats = JSON.parse(localStorage.getItem("chats")) || [];
+            const chat = chats.find(c => c.id === currentChatId);
+            if (!chat) return;
+
+            chat.messages.push({ sender, text });
+            localStorage.setItem("chats", JSON.stringify(chats));
+        }
+
+
+        function loadChat(chatId) {
+            currentChatId = chatId;
+            messagesEl.innerHTML = "";
+
+            const chats = JSON.parse(localStorage.getItem("chats")) || [];
+            const chat = chats.find(c => c.id === chatId);
+            if (!chat) return;
+
+            chat.messages.forEach(m => {
+                appendMessage(m.text, m.sender === "user" ? "user" : "bot");
+            });
+        }
+
+        function typeWriter(element, text, speed = 100) {
+
+            if (typeof text !== 'string') {
+                console.warn("typeWriter received non-string text:", text);
+
+                text = String(text)
+
+            }
+
+            element.textContent = "";
+            let i = 0;
+
+            function typing() {
+                if (i < text.length) {
+                    element.textContent += text.charAt(i);
+                    i++;
+                    setTimeout(typing, speed);
+                }
+            }
+
+            typing();
+        }
+
+
+        function renderChatList() {
+            const chatList = document.getElementById("chatList");
+            const chats = JSON.parse(localStorage.getItem("chats")) || [];
+
+            chatList.innerHTML = "Your chats<br><br>";
+
+            chats.forEach(chat => {
+                const div = document.createElement("div");
+                div.style.display = "flex";
+                div.style.justifyContent = "space-between";
+                div.style.alignItems = "center";
+                div.style.padding = "1px";
+                div.style.width = "215px";
+                div.style.cursor = "pointer";
+
+                // Chat title clickable
+                const titleSpan = document.createElement("span");
+                titleSpan.textContent = chat.title;
+                titleSpan.style.display = "inline-block";
+                titleSpan.style.maxHeight = "40px";
+                titleSpan.style.whiteSpace = "nowrap";
+                titleSpan.style.overflow = "hidden";
+                titleSpan.style.fontSize = "15px";
+                titleSpan.onclick = () => loadChat(chat.id);
+
+                div.appendChild(titleSpan);
+                chatList.appendChild(div);
+
+                typeWriter(titleSpan, chat.title)
+
+                // Delete button
+                const delBtn = document.createElement("button");
+                delBtn.textContent = "x";
+                delBtn.style.border = "none";
+                delBtn.style.padding = "10px";
+                delBtn.style.background = "transparent";
+                delBtn.style.cursor = "pointer";
+                delBtn.onclick = (e) => {
+                    e.stopPropagation(); // prevent loading chat
+                    deleteChat(chat.id);
+                };
+                div.appendChild(delBtn);
+
+                chatList.appendChild(div);
+            });
+        }
+        function deleteChat(chatId) {
+            let chats = JSON.parse(localStorage.getItem("chats")) || [];
+            chats = chats.filter(c => c.id !== chatId);
+            localStorage.setItem("chats", JSON.stringify(chats));
+
+            // If the deleted chat is currently open, clear chat box
+            if (currentChatId === chatId) {
+                messagesEl.innerHTML = "";
+                currentChatId = null;
+            }
+
+            renderChatList();
+        }
+
+
+    </script>
+
+</body>
+</html>
