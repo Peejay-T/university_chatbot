@@ -42,7 +42,7 @@
                 <input id="input" type="text" placeholder="Ask anything">
                 <button id="send"><i class="material-icons">send</i></button>
             </div>
-            <div class="meta">Backend endpoint: <code id="endpoint">http://192.168.0.117/chat</code></div>
+            <div class="meta">Backend endpoint: <code id="endpoint">http://192.168.0.108/chat</code></div>
         </div>
     </div>
     <script>
@@ -147,7 +147,7 @@
 
 
         async function generateTitle(firstMessage) {
-            const res = await fetch("http://192.168.0.117/generate-title", {
+            const res = await fetch("http://192.168.0.108/generate-title", {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json"
